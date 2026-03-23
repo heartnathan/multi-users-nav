@@ -1,0 +1,3701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitLab Batch Merge Request Creator</title>
+    <link rel="icon" href="https://services.bonjourr.fr/favicon/blob/http://www.gitlab.com">
+    <style>
+        /* 防止页面加载闪烁 - 关键CSS优先加载 */
+        html {
+            background: #0b1220;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0b1220;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        body.loaded {
+            opacity: 1;
+        }
+
+        :root {
+            /* 深色主题颜色系统 */
+            --bg: #0b1220;
+            --panel: #111a2e;
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e6edf3;
+            --muted: rgba(230, 237, 243, 0.7);
+            --primary: rgba(99, 102, 241, 0.55);
+            --primary-bg: rgba(99, 102, 241, 0.18);
+            --primary-hover: rgba(99, 102, 241, 0.28);
+            --radius: 14px;
+            --shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+
+            /* 状态色系统 */
+            --success-bg: rgba(34, 197, 94, 0.2);
+            --success-text: #22c55e;
+            --info-bg: rgba(59, 130, 246, 0.2);
+            --info-text: #3b82f6;
+            --warning-bg: rgba(234, 179, 8, 0.2);
+            --warning-text: #eab308;
+            --danger-bg: rgba(239, 68, 68, 0.2);
+            --danger-text: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            padding: 8px;
+            overflow: hidden;
+        }
+
+        /* 自定义滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Firefox滚动条样式 */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.02);
+        }
+
+        .container {
+            max-width: 100%;
+            height: 100%;
+            margin: 0 auto;
+            background: var(--panel);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(99, 102, 241, 0.15);
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 15px;
+            text-align: center;
+            flex-shrink: 0;
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .header h1 {
+            font-size: 1.2em;
+            font-weight: 400;
+            margin: 0;
+            flex-shrink: 0;
+            line-height: 1.4;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.75em;
+            margin: 0;
+            flex-shrink: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 1200px) {
+            .header p {
+                display: none;
+            }
+        }
+
+        .main-content {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 370px 400px 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        @media (max-width: 1600px) {
+            .main-content {
+                grid-template-columns: 340px 380px 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 320px 1fr;
+            }
+            .display-panel {
+                display: none !important;
+            }
+        }
+
+        /* 左侧栏 */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: hidden;
+        }
+
+        /* 右侧栏 */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: hidden;
+        }
+
+        /* 展示面板 */
+        .display-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .section {
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section-title {
+            font-size: 0.8em;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 2px;
+            height: 10px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .section-content {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 搜索框样式 */
+        .search-container {
+            position: relative;
+            margin-bottom: 6px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 6px 30px 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .search-input::placeholder {
+            color: var(--muted);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+        }
+
+        /* 项目选择器样式 */
+        .project-selector {
+            max-height: none;
+            height: 100%;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* 分组标题样式 */
+        .group-header {
+            padding: 8px 12px 6px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .group-header:hover {
+            background: rgba(99, 102, 241, 0.25);
+        }
+
+        .group-toggle {
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .group-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .group-stats {
+            margin-left: auto;
+            font-size: 12px;
+            background: var(--primary-bg);
+            color: var(--primary);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .group-content {
+            display: block;
+        }
+
+        .group-content.collapsed {
+            display: none;
+        }
+
+        .project-item {
+            padding: 6px 12px 6px 24px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .project-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .project-item.selected {
+            background: var(--primary-bg);
+            border-left: 4px solid var(--primary);
+        }
+
+        .project-checkbox {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+
+        .project-name {
+            flex: 1;
+            font-weight: 500;
+            font-size: 12px;
+        }
+
+        .project-name .highlight {
+            background: var(--warning-bg);
+            color: var(--warning-text);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        /* 已选择项目标签样式 */
+        .selected-tags-container {
+            margin-top: 8px;
+            margin-bottom: 8px;
+            display: none;
+        }
+
+        .selected-tags-container.show {
+            display: block;
+        }
+
+        .selected-tags-title {
+            font-weight: 600;
+            font-size: 11px;
+            color: var(--text);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .selected-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            max-height: 80px;
+            overflow-y: auto;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .selected-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--primary-bg);
+            color: var(--text);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            border: 1px solid var(--primary);
+        }
+
+        .selected-tag:hover {
+            background: var(--primary-hover);
+        }
+
+        .selected-tag .remove-icon {
+            width: 14px;
+            height: 14px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .selected-tag .remove-icon:hover {
+            background: rgba(255,255,255,0.5);
+        }
+
+        /* ====== 自定义下拉框组件 - 专业UI/UX设计 ====== */
+
+        /* 下拉框容器 */
+        .custom-select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        /* 下拉框触发器 - 玻璃态效果 */
+        .custom-select-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 10px;
+            background: linear-gradient(
+                135deg,
+                rgba(17, 26, 46, 0.95) 0%,
+                rgba(11, 18, 32, 0.98) 100%
+            );
+            backdrop-filter: blur(12px);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            user-select: none;
+            min-height: 36px;
+        }
+
+        /* 悬停效果 */
+        .custom-select-trigger:hover {
+            border-color: rgba(99, 102, 241, 0.6);
+            background: linear-gradient(
+                135deg,
+                rgba(17, 26, 46, 1) 0%,
+                rgba(11, 18, 32, 1) 100%
+            );
+            box-shadow:
+                0 4px 16px rgba(99, 102, 241, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            transform: translateY(-1px);
+        }
+
+        /* 激活状态 */
+        .custom-select-trigger.active {
+            border-color: var(--primary);
+            background: linear-gradient(
+                135deg,
+                rgba(99, 102, 241, 0.12) 0%,
+                rgba(99, 102, 241, 0.08) 100%
+            );
+            box-shadow:
+                0 0 0 3px rgba(99, 102, 241, 0.2),
+                0 6px 20px rgba(99, 102, 241, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+
+        /* 选中的值 */
+        .custom-select-value {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            line-height: 1.4;
+        }
+
+        /* 占位符样式 */
+        .custom-select-value.placeholder {
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        /* 箭头图标 */
+        .custom-select-arrow {
+            width: 16px;
+            height: 16px;
+            margin-left: 8px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+        }
+
+        .custom-select-trigger.active .custom-select-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* 下拉选项面板 */
+        .custom-select-dropdown {
+            position: fixed;
+            max-height: 280px;
+            overflow-y: auto;
+            background: linear-gradient(
+                180deg,
+                rgba(17, 26, 46, 0.98) 0%,
+                rgba(11, 18, 32, 0.98) 100%
+            );
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 12px;
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(99, 102, 241, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            min-width: 200px;
+        }
+
+        /* 下拉面板显示状态 */
+        .custom-select-dropdown.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        /* 选项项 */
+        .custom-select-option {
+            padding: 10px 14px 10px 14px;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: block;
+            line-height: 1.5;
+            word-break: break-word;
+            white-space: normal;
+            min-height: 38px;
+            position: relative;
+        }
+
+        .custom-select-option:last-child {
+            border-bottom: none;
+        }
+
+        /* 选项悬停效果 */
+        .custom-select-option:hover {
+            background: linear-gradient(
+                90deg,
+                rgba(99, 102, 241, 0.15) 0%,
+                rgba(99, 102, 241, 0.08) 100%
+            );
+            padding-left: 18px;
+        }
+
+        /* 选中的选项 */
+        .custom-select-option.selected {
+            background: linear-gradient(
+                90deg,
+                rgba(99, 102, 241, 0.25) 0%,
+                rgba(99, 102, 241, 0.15) 100%
+            );
+            color: #ffffff;
+            font-weight: 600;
+            border-left: 3px solid var(--primary);
+            padding-left: 15px;
+            padding-right: 32px;
+        }
+
+        .custom-select-option.selected::after {
+            content: '✓';
+            font-size: 14px;
+            color: var(--primary);
+            font-weight: bold;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* 禁用状态 */
+        .custom-select-trigger.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* 搜索框（可选） */
+        .custom-select-search {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            background: rgba(17, 26, 46, 0.98);
+            backdrop-filter: blur(16px);
+            z-index: 1;
+        }
+
+        .custom-select-search input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .custom-select-search input:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+        }
+
+        /* 空状态 */
+        .custom-select-empty {
+            padding: 24px 16px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        /* 滚动条样式 */
+        .custom-select-dropdown::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-select-dropdown::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 3px;
+        }
+
+        .custom-select-dropdown::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.4);
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+
+        .custom-select-dropdown::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.6);
+        }
+        .branch-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .branch-group {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .branch-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 下拉框主体 - 渐变背景 + 玻璃态效果 */
+        .branch-select {
+            padding: 10px 36px 10px 14px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.08) 0%,
+                rgba(255, 255, 255, 0.04) 100%
+            );
+            backdrop-filter: blur(10px);
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            position: relative;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23e6edf3' d='M4.427 6.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 6H4.604a.25.25 0 00-.177.427z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            /* 强制深色模式 */
+            color-scheme: dark;
+        }
+
+        /* 悬停效果 - 发光边框 */
+        .branch-select:hover {
+            border-color: rgba(99, 102, 241, 0.6);
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.12) 0%,
+                rgba(255, 255, 255, 0.06) 100%
+            );
+            box-shadow:
+                0 4px 12px rgba(99, 102, 241, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+
+        /* 聚焦效果 - 主色调光晕 */
+        .branch-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: linear-gradient(
+                135deg,
+                rgba(99, 102, 241, 0.15) 0%,
+                rgba(99, 102, 241, 0.08) 100%
+            );
+            box-shadow:
+                0 0 0 4px rgba(99, 102, 241, 0.2),
+                0 6px 16px rgba(99, 102, 241, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* 激活状态 */
+        .branch-select:active {
+            transform: translateY(0);
+            box-shadow:
+                0 0 0 4px rgba(99, 102, 241, 0.15),
+                0 2px 8px rgba(99, 102, 241, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        /* 下拉选项样式 - 深色主题优化 */
+        .branch-select option {
+            background: #111a2e !important;
+            color: var(--text) !important;
+            font-weight: 500;
+            padding: 10px 14px;
+        }
+
+        /* 选项悬停效果 */
+        .branch-select option:hover {
+            background: rgba(99, 102, 241, 0.25) !important;
+            color: var(--text) !important;
+        }
+
+        /* 选中的选项 */
+        .branch-select option:checked,
+        .branch-select option:checked:hover {
+            background: rgba(99, 102, 241, 0.4) !important;
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+
+        /* Firefox 特殊处理 */
+        @-moz-document url-prefix() {
+            .branch-select {
+                color-scheme: dark;
+            }
+            .branch-select option {
+                background-color: #111a2e;
+                color: #e6edf3;
+            }
+        }
+
+        /* Webkit 浏览器（Chrome/Edge/Safari）特殊处理 */
+        @supports (-webkit-appearance: none) {
+            .branch-select {
+                color-scheme: dark;
+            }
+        }
+
+        /* 禁用状态 */
+        .branch-select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02);
+            box-shadow: none;
+        }
+
+        .branch-select:disabled:hover {
+            transform: none;
+        }
+
+        /* 控制按钮样式 */
+        .control-buttons {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.15s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .btn-primary {
+            background: var(--primary-bg);
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: rgba(156, 163, 175, 0.15);
+            border-color: rgba(156, 163, 175, 0.3);
+            color: var(--text);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(156, 163, 175, 0.25);
+        }
+
+        .btn-success {
+            background: var(--success-bg);
+            border-color: var(--success-text);
+            color: var(--success-text);
+        }
+
+        .btn-success:hover {
+            background: rgba(34, 197, 94, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 表单样式 */
+        .form-row {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .form-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .form-input {
+            padding: 8px 12px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 10px;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.08) 0%,
+                rgba(255, 255, 255, 0.04) 100%
+            );
+            backdrop-filter: blur(10px);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            line-height: 1.4;
+            min-height: 36px;
+        }
+
+        .form-input:hover {
+            border-color: rgba(99, 102, 241, 0.6);
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.12) 0%,
+                rgba(255, 255, 255, 0.06) 100%
+            );
+            box-shadow:
+                0 4px 12px rgba(99, 102, 241, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: linear-gradient(
+                135deg,
+                rgba(99, 102, 241, 0.15) 0%,
+                rgba(99, 102, 241, 0.08) 100%
+            );
+            box-shadow:
+                0 0 0 4px rgba(99, 102, 241, 0.2),
+                0 6px 16px rgba(99, 102, 241, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .form-input::placeholder {
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        /* textarea 特殊样式 */
+        textarea.form-input {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        /* select 下拉框特殊样式 */
+        select.form-input {
+            padding-right: 36px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23e6edf3' d='M4.427 6.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 6H4.604a.25.25 0 00-.177.427z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            /* 强制深色模式 */
+            color-scheme: dark;
+        }
+
+        /* select 下拉选项样式 */
+        select.form-input option {
+            background: #111a2e !important;
+            color: var(--text) !important;
+            font-weight: 500;
+            padding: 10px 14px;
+        }
+
+        select.form-input option:hover {
+            background: rgba(99, 102, 241, 0.25) !important;
+            color: var(--text) !important;
+        }
+
+        select.form-input option:checked,
+        select.form-input option:checked:hover {
+            background: rgba(99, 102, 241, 0.4) !important;
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+
+        /* 进度条样式 */
+        .progress-container {
+            margin: 8px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        /* 结果表格样式 */
+        .results-table {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .results-table thead {
+            display: block;
+            width: 100%;
+            flex-shrink: 0;
+            background: var(--primary-bg);
+            box-sizing: border-box;
+            overflow-y: scroll;
+            overflow-x: hidden;
+        }
+
+        .results-table thead tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .results-table tbody {
+            display: block;
+            flex: 1;
+            overflow-y: scroll;
+            overflow-x: hidden;
+            width: 100%;
+            min-height: 0;
+        }
+
+        .results-table tbody tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .results-table th {
+            background: var(--primary-bg);
+            color: var(--text);
+            padding: 6px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .results-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .results-table th:nth-child(1),
+        .results-table td:nth-child(1) {
+            width: 25%;
+        }
+
+        .results-table th:nth-child(2),
+        .results-table td:nth-child(2) {
+            width: 12%;
+        }
+
+        .results-table th:nth-child(3),
+        .results-table td:nth-child(3) {
+            width: 12%;
+        }
+
+        .results-table th:nth-child(4),
+        .results-table td:nth-child(4) {
+            width: 18%;
+        }
+
+        .results-table th:nth-child(5),
+        .results-table td:nth-child(5) {
+            width: 33%;
+        }
+
+        .results-table tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .status-success {
+            color: var(--success-text);
+            font-weight: 600;
+        }
+
+        .status-error {
+            color: var(--danger-text);
+            font-weight: 600;
+        }
+
+        .status-pending {
+            color: var(--warning-text);
+            font-weight: 600;
+        }
+
+        /* 提交表格样式 */
+        .commits-table {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .commits-table thead {
+            display: block;
+            width: 100%;
+            flex-shrink: 0;
+            background: rgba(102, 126, 234, 0.2);
+            box-sizing: border-box;
+            overflow-y: scroll;
+            overflow-x: hidden;
+        }
+
+        .commits-table thead tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .commits-table tbody {
+            display: block;
+            flex: 1;
+            overflow-y: scroll;
+            overflow-x: hidden;
+            width: 100%;
+            min-height: 0;
+        }
+
+        .commits-table tbody tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .commits-table th {
+            background: rgba(102, 126, 234, 0.2);
+            color: var(--text);
+            padding: 6px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .commits-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .commits-table th:nth-child(1),
+        .commits-table td:nth-child(1) {
+            width: 20%;
+        }
+
+        .commits-table th:nth-child(2),
+        .commits-table td:nth-child(2) {
+            width: 12%;
+        }
+
+        .commits-table th:nth-child(3),
+        .commits-table td:nth-child(3) {
+            width: 35%;
+        }
+
+        .commits-table th:nth-child(4),
+        .commits-table td:nth-child(4) {
+            width: 15%;
+        }
+
+        .commits-table th:nth-child(5),
+        .commits-table td:nth-child(5) {
+            width: 18%;
+        }
+
+        .commits-table tr:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .commit-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .commit-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Result table link style - high contrast for dark background */
+        .results-table a {
+            color: #60a5fa;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .results-table a:hover {
+            color: #93c5fd;
+            text-decoration: underline;
+        }
+
+        /* 提示消息样式 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: var(--text);
+            font-weight: 600;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-success {
+            background: var(--success-bg);
+            border-color: var(--success-text);
+        }
+
+        .toast-error {
+            background: var(--danger-bg);
+            border-color: var(--danger-text);
+        }
+
+        .toast-warning {
+            background: var(--warning-bg);
+            border-color: var(--warning-text);
+        }
+
+        /* 配置面板样式 */
+        .config-panel {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+
+        .config-toggle {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .config-content {
+            display: none;
+        }
+
+        .config-content.show {
+            display: block;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .branch-container {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .control-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3B82F6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* 统计信息样式 */
+        .stats-container {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.04);
+            padding: 6px 10px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid var(--border);
+            flex: 1;
+            min-width: 70px;
+        }
+
+        .stat-number {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🚀 GitLab Batch MR Creator</h1>
+        <p>高效创建多项目合并请求工具</p>
+    </div>
+
+    <div class="main-content">
+        <!-- 第一栏：项目选择 -->
+        <div class="left-panel">
+            <!-- 配置面板 -->
+            <div class="config-panel">
+                <div class="config-toggle" onclick="toggleConfig()">
+                    ⚙️ 配置 <span id="configArrow">▼</span>
+                </div>
+                <div class="config-content" id="configContent">
+                    <!-- 隐私说明 -->
+                    <div style="font-size: 11px; color: var(--muted); margin-bottom: 12px; padding: 6px; background: rgba(34, 197, 94, 0.1); border-radius: 6px; border: 1px solid rgba(34, 197, 94, 0.3);">
+                        🔒 <strong style="color: var(--success-text);">隐私保护</strong>：所有配置数据（GitLab、AI）仅保存在浏览器本地存储，不会上传到任何服务器
+                    </div>
+
+                    <!-- GitLab 配置 -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-weight: 600; font-size: 12px; color: var(--text); margin-bottom: 6px;">
+                            🦊 GitLab 配置
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">服务器:</label>
+                            <input type="text" class="form-input" id="gitlabServer" value="https://gitlab-pay.xgd.com">
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">Token:</label>
+                            <input type="password" class="form-input" id="gitlabToken" value="">
+                        </div>
+                        <div class="control-buttons">
+                            <button class="btn btn-secondary" onclick="saveConfig()">💾 保存</button>
+                            <button class="btn btn-secondary" onclick="testConnection()">🔍 测试</button>
+                        </div>
+                    </div>
+
+                    <!-- AI 配置 -->
+                    <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+                        <div style="font-weight: 600; font-size: 12px; color: var(--text); margin-bottom: 6px;">
+                            🤖 AI 配置 (OpenAI 格式)
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">API地址:</label>
+                            <input type="text" class="form-input" id="aiEndpoint" placeholder="https://api.openai.com/v1">
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">API Key:</label>
+                            <input type="password" class="form-input" id="aiApiKey" placeholder="sk-...">
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">模型:</label>
+                            <input type="text" class="form-input" id="aiModel" placeholder="gpt-4o-mini">
+                        </div>
+                        <div class="control-buttons">
+                            <button class="btn btn-secondary" onclick="saveAiConfig()">💾 保存 AI 配置</button>
+                            <button class="btn btn-secondary" onclick="testAiConnection()">🔍 测试 AI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="stats-container" id="statsContainer">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalProjects">0</div>
+                    <div class="stat-label">总项目</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="selectedProjects">0</div>
+                    <div class="stat-label">已选择</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="commonBranches">0</div>
+                    <div class="stat-label">共同分支</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalCommits">0</div>
+                    <div class="stat-label">差异提交</div>
+                </div>
+            </div>
+
+            <!-- 项目选择区域 -->
+            <div class="section" style="flex: 1;">
+                <div class="section-title">📂 项目选择</div>
+                <div class="section-content">
+                    <div class="search-container">
+                        <input type="text" class="search-input" id="projectSearch" placeholder="🔍 搜索项目...">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                    <div class="control-buttons">
+                        <button class="btn btn-secondary" onclick="selectAll()">✅ 全选</button>
+                        <button class="btn btn-secondary" onclick="selectNone()">❌ 清空</button>
+                        <button class="btn btn-primary" onclick="loadProjects(true)" id="refreshBtn">
+                            <span class="loading hidden" id="refreshLoading"></span>
+                            🔄 刷新
+                        </button>
+                    </div>
+                    <div class="project-selector" id="projectSelector" style="flex: 1;">
+                        <div style="padding: 40px; text-align: center; color: #999;">
+                            <div class="loading" style="margin: 0 auto 15px;"></div>
+                            正在加载项目列表...
+                        </div>
+                    </div>
+
+                    <!-- 已选择项目标签 -->
+                    <div class="selected-tags-container" id="selectedTagsContainer">
+                        <div class="selected-tags-title">
+                            🏷️ 已选 (<span id="selectedTagsCount">0</span>)
+                            <button class="btn btn-secondary" onclick="clearSelectedTags()" style="margin-left: auto; padding: 3px 6px; font-size: 10px;">清空</button>
+                        </div>
+                        <div class="selected-tags" id="selectedTags"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第二栏：配置和操作 -->
+        <div class="right-panel">
+            <!-- 分支选择区域 -->
+            <div class="section">
+                <div class="section-title">🌿 分支配置</div>
+                <div class="branch-container">
+                    <div class="branch-group">
+                        <label class="branch-label">📤 源分支</label>
+                        <select class="branch-select" id="sourceBranch">
+                            <option value="">请先选择项目</option>
+                        </select>
+                    </div>
+                    <div class="branch-group">
+                        <label class="branch-label">📥 目标分支</label>
+                        <select class="branch-select" id="targetBranch">
+                            <option value="">请先选择项目</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- 快速选择按钮 -->
+                <div class="control-buttons" style="margin-top: 8px;">
+                    <button class="btn btn-secondary" onclick="quickSelectBranch('dev', 'test')" style="font-size: 12px; padding: 6px 10px;">
+                        dev → test
+                    </button>
+                    <button class="btn btn-secondary" onclick="quickSelectBranch('test', 'uat')" style="font-size: 12px; padding: 6px 10px;">
+                        test → uat
+                    </button>
+                    <button class="btn btn-secondary" onclick="quickSelectBranch('uat', 'master')" style="font-size: 12px; padding: 6px 10px;">
+                        uat → master
+                    </button>
+                </div>
+            </div>
+
+            <!-- MR配置区域 -->
+            <div class="section">
+                <div class="section-title">📝 MR配置</div>
+                <div id="manualMrConfig">
+                    <div class="form-row">
+                        <label class="form-label">标题:</label>
+                        <input type="text" class="form-input" id="titleTemplate" placeholder="{source} → {target}">
+                    </div>
+                    <div class="form-row">
+                        <label class="form-label">指派:</label>
+                        <select class="form-input" id="assigneeSelect">
+                            <option value="">无</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label class="form-label">描述:</label>
+                        <textarea class="form-input" id="descriptionTemplate" rows="2" placeholder="MR描述（可选）"></textarea>
+                    </div>
+                </div>
+
+                <!-- AI 模式提示 -->
+                <div id="aiModeHint" style="display: none; padding: 12px; background: rgba(99, 102, 241, 0.15); border-radius: 8px; border: 1px solid var(--primary); text-align: center; margin-bottom: 12px;">
+                    <div style="font-size: 13px; color: var(--text); margin-bottom: 4px;">
+                        🤖 <strong>AI 生成模式</strong>
+                    </div>
+                    <div style="font-size: 11px; color: var(--muted);">
+                        已使用 AI 生成的标题和描述，仅保留指派人员配置
+                    </div>
+                    <div style="margin-top: 8px;">
+                        <button class="btn btn-secondary" onclick="clearAiMode()" style="font-size: 11px; padding: 4px 8px;">
+                            ❌ 清除 AI 信息
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 指派人员（AI 模式下也显示） -->
+                <div id="assigneeConfig" style="display: none;">
+                    <div class="form-row">
+                        <label class="form-label">指派:</label>
+                        <select class="form-input" id="assigneeSelectAi">
+                            <option value="">无</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="section">
+                <div class="section-title">🚀 执行操作</div>
+                <div class="control-buttons">
+                    <!-- AI 生成按钮（默认显示，未配置时禁用） -->
+                    <button class="btn btn-primary" onclick="generateMRWithAI()" id="aiGenerateBtn" disabled>
+                        🤖 AI 生成MR信息
+                    </button>
+                    <button class="btn btn-primary" onclick="previewCommits()" id="previewBtn" disabled>
+                        👁️ 预览差异
+                    </button>
+                    <button class="btn btn-success" onclick="createBatchMR()" id="createBtn" disabled>
+                        🚀 创建 MR
+                    </button>
+                </div>
+
+                <!-- 进度条 -->
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">准备中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第三栏：提交差异展示 -->
+        <div class="display-panel">
+            <div class="section" style="height: 100%; display: flex; flex-direction: column;">
+                <div class="section-title">📊 提交差异</div>
+                <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                    <table class="commits-table" id="commitsTable">
+                        <thead>
+                        <tr>
+                            <th style="width: 20%;">项目</th>
+                            <th style="width: 12%;">提交ID</th>
+                            <th style="width: 35%;">消息</th>
+                            <th style="width: 15%;">作者</th>
+                            <th style="width: 18%;">日期</th>
+                        </tr>
+                        </thead>
+                        <tbody id="commitsTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 40px; color: var(--muted);">
+                                点击"预览差异"查看提交信息
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- AI 生成的 MR 信息展示区域 -->
+            <div class="section" id="aiMrInfoSection" style="display: none; margin-top: 10px; max-height: 300px; overflow-y: auto;">
+                <div class="section-title">🤖 AI 生成的 MR 信息</div>
+                <div id="aiMrInfoContainer" style="font-size: 12px;">
+                    <!-- AI 生成的内容将显示在这里 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 第四栏：结果展示 -->
+        <div class="display-panel">
+            <div class="section" style="height: 100%; display: flex; flex-direction: column;">
+                <div class="section-title">✅ 创建结果</div>
+                <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                    <table class="results-table" id="resultsTable">
+                        <thead>
+                        <tr>
+                            <th style="width: 25%;">项目</th>
+                            <th style="width: 12%;">状态</th>
+                            <th style="width: 12%;">MR ID</th>
+                            <th style="width: 18%;">链接</th>
+                            <th style="width: 33%;">错误信息</th>
+                        </tr>
+                        </thead>
+                        <tbody id="resultsTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 40px; color: var(--muted);">
+                                点击"创建 MR"查看创建结果
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ====== 全局变量 ======
+    let allProjects = [];
+    let selectedProjects = new Set();
+    let availableBranches = new Map();
+    let gitlabConfig = {
+        server: 'https://gitlab-pay.xgd.com',
+        token: ''
+    };
+    let aiConfig = {
+        endpoint: '',
+        apiKey: '',
+        model: 'gpt-4o-mini'
+    };
+    let aiGeneratedMRInfo = new Map(); // 存储 AI 生成的 MR 信息，key: projectId, value: {title, description}
+    let searchHistory = [];
+    let favoriteProjects = new Set();
+    let collapsedGroups = new Set(); // 存储折叠的分组
+
+    // ====== 配置管理 ======
+    function loadConfig() {
+        const saved = localStorage.getItem('gitlab-config');
+        if (saved) {
+            gitlabConfig = { ...gitlabConfig, ...JSON.parse(saved) };
+            document.getElementById('gitlabServer').value = gitlabConfig.server;
+            document.getElementById('gitlabToken').value = gitlabConfig.token;
+        }
+
+        // 加载 AI 配置
+        const savedAi = localStorage.getItem('ai-config');
+        if (savedAi) {
+            aiConfig = { ...aiConfig, ...JSON.parse(savedAi) };
+            document.getElementById('aiEndpoint').value = aiConfig.endpoint || '';
+            document.getElementById('aiApiKey').value = aiConfig.apiKey || '';
+            document.getElementById('aiModel').value = aiConfig.model || 'gpt-4o-mini';
+        }
+
+        // 更新 AI 按钮显示状态
+        updateAiButtonVisibility();
+
+        // 加载搜索历史
+        const history = localStorage.getItem('search-history');
+        if (history) {
+            searchHistory = JSON.parse(history);
+        }
+
+        // 加载收藏项目
+        const favorites = localStorage.getItem('favorite-projects');
+        if (favorites) {
+            favoriteProjects = new Set(JSON.parse(favorites));
+        }
+    }
+
+    // 检查 AI 是否已配置
+    function isAiConfigured() {
+        return aiConfig.endpoint && aiConfig.apiKey && aiConfig.model;
+    }
+
+    // 更新 AI 按钮的显示状态
+    function updateAiButtonVisibility() {
+        // 不再控制显示隐藏，AI 按钮始终显示
+        // 只在 updateButtonStates() 中控制启用/禁用状态
+    }
+
+    // 同步输入框的值到内存配置（用于实时生效）
+    function syncConfigFromInputs() {
+        const server = document.getElementById('gitlabServer').value.trim();
+        const token = document.getElementById('gitlabToken').value.trim();
+
+        // 只有当输入框有值时才更新
+        if (server) gitlabConfig.server = server;
+        if (token) gitlabConfig.token = token;
+    }
+
+    // 获取当前配置的唯一标识，用于缓存键
+    function getConfigHash() {
+        if (!gitlabConfig.server || !gitlabConfig.token) {
+            return 'default';
+        }
+        return btoa(gitlabConfig.server + '|' + gitlabConfig.token.substring(0, 8)).substring(0, 16);
+    }
+
+    // 调试函数：显示当前缓存状态（开发调试用）
+    function debugCacheInfo() {
+        const configHash = getConfigHash();
+        const projectCacheKey = `gitlab-projects-${configHash}`;
+        const projectCacheTimeKey = `gitlab-projects-time-${configHash}`;
+
+        console.group('🔍 缓存调试信息');
+        console.log('当前配置Hash:', configHash);
+        console.log('当前服务器:', gitlabConfig.server);
+        console.log('当前Token前缀:', gitlabConfig.token.substring(0, 8) + '...');
+        console.log('项目缓存键:', projectCacheKey);
+        console.log('项目缓存存在:', !!localStorage.getItem(projectCacheKey));
+
+        // 显示分支缓存信息
+        let branchCacheCount = 0;
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key && key.startsWith(`all-branches-${configHash}-`)) {
+                branchCacheCount++;
+            }
+        }
+        console.log('分支缓存数量:', branchCacheCount);
+        console.groupEnd();
+    }
+
+    // 添加到window对象，方便控制台调用
+    window.debugCacheInfo = debugCacheInfo;
+
+    function saveConfig() {
+        const server = document.getElementById('gitlabServer').value.trim();
+        const token = document.getElementById('gitlabToken').value.trim();
+
+        if (!server || !token) {
+            showToast('请填写完整的服务器地址和Token', 'warning');
+            return false;
+        }
+
+        gitlabConfig.server = server;
+        gitlabConfig.token = token;
+
+        try {
+            localStorage.setItem('gitlab-config', JSON.stringify(gitlabConfig));
+            showToast('✅ 配置已保存到本地存储', 'success');
+            console.log('配置保存成功:', gitlabConfig);
+            return true;
+        } catch (error) {
+            showToast('❌ 配置保存失败: ' + error.message, 'error');
+            console.error('配置保存失败:', error);
+            return false;
+        }
+    }
+
+    function toggleConfig() {
+        const content = document.getElementById('configContent');
+        const arrow = document.getElementById('configArrow');
+        content.classList.toggle('show');
+        arrow.textContent = content.classList.contains('show') ? '▲' : '▼';
+    }
+
+    async function testConnection() {
+        try {
+            // 先自动保存当前配置，确保使用最新的输入值
+            const server = document.getElementById('gitlabServer').value.trim();
+            const token = document.getElementById('gitlabToken').value.trim();
+
+            if (!server || !token) {
+                showToast('请先填写GitLab服务器地址和Token', 'warning');
+                return;
+            }
+
+            // 临时更新配置用于测试，但不立即保存到localStorage
+            const originalConfig = { ...gitlabConfig };
+            gitlabConfig.server = server;
+            gitlabConfig.token = token;
+
+            showToast('正在测试连接...', 'warning');
+            await apiRequest('/user');
+
+            // 测试成功，现在保存配置
+            localStorage.setItem('gitlab-config', JSON.stringify(gitlabConfig));
+            showToast('连接测试成功！配置已自动保存', 'success');
+        } catch (error) {
+            // 测试失败，恢复原配置
+            gitlabConfig = originalConfig;
+            showToast('连接测试失败: ' + error.message, 'error');
+        }
+    }
+
+    // ====== AI 配置管理 ======
+    function saveAiConfig() {
+        const endpoint = document.getElementById('aiEndpoint').value.trim();
+        const apiKey = document.getElementById('aiApiKey').value.trim();
+        const model = document.getElementById('aiModel').value.trim();
+
+        if (!endpoint || !apiKey || !model) {
+            showToast('请填写完整的 AI 配置信息', 'warning');
+            return false;
+        }
+
+        aiConfig.endpoint = endpoint;
+        aiConfig.apiKey = apiKey;
+        aiConfig.model = model;
+
+        try {
+            localStorage.setItem('ai-config', JSON.stringify(aiConfig));
+            showToast('✅ AI 配置已保存到本地存储', 'success');
+            console.log('AI 配置保存成功:', { ...aiConfig, apiKey: '***' });
+
+            // 更新 AI 按钮显示状态
+            updateAiButtonVisibility();
+
+            return true;
+        } catch (error) {
+            showToast('❌ AI 配置保存失败: ' + error.message, 'error');
+            console.error('AI 配置保存失败:', error);
+            return false;
+        }
+    }
+
+    async function testAiConnection() {
+        // 获取测试按钮元素
+        const testBtn = event.target;
+        const originalText = testBtn.innerHTML;
+
+        try {
+            // 禁用按钮并修改文案
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="loading" style="width: 14px; height: 14px; border-width: 2px; margin-right: 4px;"></span> 测试中...';
+
+            // 先自动保存当前配置
+            const endpoint = document.getElementById('aiEndpoint').value.trim();
+            const apiKey = document.getElementById('aiApiKey').value.trim();
+            const model = document.getElementById('aiModel').value.trim();
+
+            if (!endpoint || !apiKey || !model) {
+                showToast('请先填写完整的 AI 配置信息', 'warning');
+                return;
+            }
+
+            // 临时更新配置用于测试
+            const originalConfig = { ...aiConfig };
+            aiConfig.endpoint = endpoint;
+            aiConfig.apiKey = apiKey;
+            aiConfig.model = model;
+
+            showToast('正在测试 AI 连接...', 'warning');
+
+            // 调用 OpenAI API 测试连接
+            const response = await fetch(`${aiConfig.endpoint}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${aiConfig.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: aiConfig.model,
+                    messages: [
+                        { role: 'user', content: 'Hello, this is a connection test.' }
+                    ],
+                    max_tokens: 10
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API 请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log('AI 测试响应:', data);
+
+            // 测试成功，保存配置
+            localStorage.setItem('ai-config', JSON.stringify(aiConfig));
+            showToast('✅ AI 连接测试成功！配置已自动保存', 'success');
+        } catch (error) {
+            // 测试失败，恢复原配置
+            aiConfig = originalConfig;
+            showToast('❌ AI 连接测试失败: ' + error.message, 'error');
+            console.error('AI 测试失败:', error);
+        } finally {
+            // 恢复按钮状态
+            testBtn.disabled = false;
+            testBtn.innerHTML = originalText;
+        }
+    }
+
+    // ====== AI 生成 MR 信息 ======
+    async function generateMRWithAI() {
+        const sourceBranch = document.getElementById('sourceBranch').value;
+        const targetBranch = document.getElementById('targetBranch').value;
+
+        if (!sourceBranch || !targetBranch) {
+            showToast('请先选择源分支和目标分支', 'warning');
+            return;
+        }
+
+        if (selectedProjects.size === 0) {
+            showToast('请先选择项目', 'warning');
+            return;
+        }
+
+        if (!isAiConfigured()) {
+            showToast('请先配置 AI', 'warning');
+            return;
+        }
+
+        const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+        const originalText = aiGenerateBtn.innerHTML;
+
+        try {
+            // 禁用按钮并修改文案
+            aiGenerateBtn.disabled = true;
+            aiGenerateBtn.innerHTML = '<span class="loading" style="width: 14px; height: 14px; border-width: 2px; margin-right: 4px;"></span> AI 生成中...';
+
+            showToast('🤖 AI 正在为每个项目生成 MR 信息...', 'info');
+
+            // 清空之前的 AI 生成信息
+            aiGeneratedMRInfo.clear();
+
+            const projectIds = Array.from(selectedProjects);
+            let completed = 0;
+
+            // 显示 AI 生成区域
+            const aiMrInfoSection = document.getElementById('aiMrInfoSection');
+            const aiMrInfoContainer = document.getElementById('aiMrInfoContainer');
+            aiMrInfoSection.style.display = 'block';
+            aiMrInfoContainer.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="loading"></div> AI 正在生成中...</div>';
+
+            // 为每个项目生成 MR 信息
+            for (const projectId of projectIds) {
+                const project = allProjects.find(p => p.id === projectId);
+
+                try {
+                    // 获取项目的提交差异
+                    const comparison = await apiRequest(`/projects/${projectId}/repository/compare?from=${targetBranch}&to=${sourceBranch}`);
+                    const commits = comparison.commits || [];
+
+                    // 构建提交信息摘要
+                    const commitSummary = commits.slice(0, 10).map(c => `- ${c.title}`).join('\n');
+
+                    // 调用 AI 生成 MR 标题和描述（英文 Prompt）
+                    const prompt = `You are a professional code review assistant. Please generate a concise and professional title and description for a GitLab Merge Request based on the following information.
+
+Project Name: ${project.name}
+Source Branch: ${sourceBranch}
+Target Branch: ${targetBranch}
+Number of Commits: ${commits.length}
+Recent Commit Messages:
+${commitSummary || 'No commit differences'}
+
+Please generate:
+1. A concise MR title (no more than 80 characters)
+2. A detailed MR description (including change summary, impact scope, etc.)
+
+Please return in JSON format as follows:
+{
+  "title": "MR Title",
+  "description": "MR Description"
+}`;
+
+                    const response = await fetch(`${aiConfig.endpoint}/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${aiConfig.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: aiConfig.model,
+                            messages: [
+                                { role: 'user', content: prompt }
+                            ],
+                            temperature: 0.7,
+                            max_tokens: 500
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`AI API 请求失败: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    const aiResponse = data.choices[0].message.content;
+
+                    // 解析 AI 返回的 JSON
+                    let mrInfo;
+                    try {
+                        // 尝试提取 JSON（可能包含在 markdown 代码块中）
+                        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            mrInfo = JSON.parse(jsonMatch[0]);
+                        } else {
+                            throw new Error('无法解析 AI 响应');
+                        }
+                    } catch (parseError) {
+                        // 如果解析失败，使用默认格式
+                        mrInfo = {
+                            title: `${sourceBranch} -> ${targetBranch}`,
+                            description: aiResponse
+                        };
+                    }
+
+                    // 存储 AI 生成的信息
+                    aiGeneratedMRInfo.set(projectId, mrInfo);
+
+                    completed++;
+                    showToast(`✅ 已为 ${completed}/${projectIds.length} 个项目生成 MR 信息`, 'info');
+
+                } catch (error) {
+                    console.error(`为项目 ${project.name} 生成 MR 信息失败:`, error);
+                    // 失败时使用默认信息
+                    aiGeneratedMRInfo.set(projectId, {
+                        title: `${sourceBranch} -> ${targetBranch}`,
+                        description: `❌ AI 生成失败: ${error.message}`
+                    });
+                    completed++;
+                }
+            }
+
+            // 显示生成的 MR 信息
+            displayAiGeneratedMRInfo();
+
+            // 切换到 AI 模式
+            switchToAiMode();
+
+            showToast(`✅ AI 已为 ${projectIds.length} 个项目生成 MR 信息`, 'success');
+
+        } catch (error) {
+            console.error('AI 生成 MR 信息失败:', error);
+            showToast('❌ AI 生成失败: ' + error.message, 'error');
+        } finally {
+            // 恢复按钮状态
+            aiGenerateBtn.disabled = false;
+            aiGenerateBtn.innerHTML = originalText;
+        }
+    }
+
+    // 切换到 AI 模式
+    function switchToAiMode() {
+        // 隐藏手动配置
+        document.getElementById('manualMrConfig').style.display = 'none';
+
+        // 显示 AI 模式提示
+        document.getElementById('aiModeHint').style.display = 'block';
+
+        // 显示指派人员配置（AI 模式下也需要）
+        const assigneeConfig = document.getElementById('assigneeConfig');
+        const assigneeSelectAi = document.getElementById('assigneeSelectAi');
+        const assigneeSelect = document.getElementById('assigneeSelect');
+
+        // 同步指派人员选项
+        assigneeSelectAi.innerHTML = assigneeSelect.innerHTML;
+        assigneeSelectAi.value = assigneeSelect.value;
+
+        assigneeConfig.style.display = 'block';
+    }
+
+    // 清除 AI 模式
+    function clearAiMode() {
+        // 清空 AI 生成的信息
+        aiGeneratedMRInfo.clear();
+
+        // 显示手动配置
+        document.getElementById('manualMrConfig').style.display = 'block';
+
+        // 隐藏 AI 模式提示
+        document.getElementById('aiModeHint').style.display = 'none';
+
+        // 隐藏 AI 指派配置
+        document.getElementById('assigneeConfig').style.display = 'none';
+
+        // 隐藏 AI 生成的 MR 信息展示区域
+        document.getElementById('aiMrInfoSection').style.display = 'none';
+
+        showToast('已清除 AI 生成的信息', 'success');
+    }
+
+    // 显示 AI 生成的 MR 信息
+    function displayAiGeneratedMRInfo() {
+        const aiMrInfoContainer = document.getElementById('aiMrInfoContainer');
+
+        if (aiGeneratedMRInfo.size === 0) {
+            aiMrInfoContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--muted);">暂无 AI 生成的信息</div>';
+            return;
+        }
+
+        let html = '';
+
+        aiGeneratedMRInfo.forEach((mrInfo, projectId) => {
+            const project = allProjects.find(p => p.id === projectId);
+            html += `
+                <div style="margin-bottom: 12px; padding: 8px; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="font-weight: 600; color: var(--primary); margin-bottom: 4px;">
+                        📦 ${project.name}
+                    </div>
+                    <div style="margin-bottom: 4px;">
+                        <strong style="color: var(--text);">标题:</strong>
+                        <span style="color: var(--muted);">${mrInfo.title}</span>
+                    </div>
+                    <div>
+                        <strong style="color: var(--text);">描述:</strong>
+                        <div style="color: var(--muted); white-space: pre-wrap; margin-top: 4px; padding: 6px; background: rgba(0, 0, 0, 0.2); border-radius: 4px;">${mrInfo.description}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        aiMrInfoContainer.innerHTML = html;
+    }
+
+    function exportConfig() {
+        const config = {
+            server: gitlabConfig.server,
+            token: gitlabConfig.token,
+            favorites: Array.from(favoriteProjects),
+            searchHistory: searchHistory
+        };
+
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'gitlab-config.json';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        showToast('配置已导出', 'success');
+    }
+
+    function importConfig(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const config = JSON.parse(e.target.result);
+                if (config.server) gitlabConfig.server = config.server;
+                if (config.token) gitlabConfig.token = config.token;
+                if (config.favorites) favoriteProjects = new Set(config.favorites);
+                if (config.searchHistory) searchHistory = config.searchHistory;
+
+                // 更新界面
+                document.getElementById('gitlabServer').value = gitlabConfig.server;
+                document.getElementById('gitlabToken').value = gitlabConfig.token;
+
+                // 保存到本地存储
+                saveConfig();
+                localStorage.setItem('favorite-projects', JSON.stringify(Array.from(favoriteProjects)));
+                localStorage.setItem('search-history', JSON.stringify(searchHistory));
+
+                showToast('配置已导入', 'success');
+            } catch (error) {
+                showToast('配置文件格式错误', 'error');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // ====== 工具函数 ======
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type} show`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    function updateStats() {
+        document.getElementById('totalProjects').textContent = allProjects.length;
+        document.getElementById('selectedProjects').textContent = selectedProjects.size;
+    }
+
+    function updateSelectedTags() {
+        const container = document.getElementById('selectedTagsContainer');
+        const tagsContainer = document.getElementById('selectedTags');
+        const countSpan = document.getElementById('selectedTagsCount');
+
+        if (selectedProjects.size === 0) {
+            container.classList.remove('show');
+            return;
+        }
+
+        container.classList.add('show');
+        countSpan.textContent = selectedProjects.size;
+
+        const selectedProjectObjects = Array.from(selectedProjects).map(id =>
+            allProjects.find(p => p.id === id)
+        ).filter(Boolean);
+
+        tagsContainer.innerHTML = selectedProjectObjects.map(project => `
+            <div class="selected-tag" onclick="removeSelectedTag(${project.id})">
+                <span>${project.name_with_namespace || project.name}</span>
+                <span class="remove-icon">×</span>
+            </div>
+        `).join('');
+    }
+
+    function removeSelectedTag(projectId) {
+        selectedProjects.delete(projectId);
+        renderProjects();
+        updateStats();
+        updateButtonStates();
+
+        if (selectedProjects.size > 0) {
+            loadCommonBranches();
+        } else {
+            clearBranches();
+        }
+
+        showToast('已移除项目', 'success');
+    }
+
+    function clearSelectedTags() {
+        if (selectedProjects.size === 0) {
+            showToast('没有已选择的项目', 'warning');
+            return;
+        }
+
+        if (confirm(`确定要清空所有已选择的 ${selectedProjects.size} 个项目吗？`)) {
+            selectedProjects.clear();
+            renderProjects();
+            updateStats();
+            updateButtonStates();
+            clearBranches();
+            showToast('已清空所有选择', 'success');
+        }
+    }
+
+    function updateButtonStates() {
+        const hasSelection = selectedProjects.size > 0;
+        const hasAiConfig = isAiConfigured();
+
+        document.getElementById('previewBtn').disabled = !hasSelection;
+        document.getElementById('createBtn').disabled = !hasSelection;
+
+        // AI 生成按钮：需要选择项目 + 配置了 AI
+        const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+        if (aiGenerateBtn) {
+            aiGenerateBtn.disabled = !hasSelection || !hasAiConfig;
+        }
+    }
+
+    function highlightText(text, query) {
+        if (!query) return text;
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.replace(regex, '<span class="highlight">$1</span>');
+    }
+
+    // 简单的拼音首字母匹配
+    function matchesPinyin(text, query) {
+        const pinyinMap = {
+            'a': '阿啊', 'b': '白不', 'c': '参才', 'd': '大地', 'e': '额而',
+            'f': '发房', 'g': '工高', 'h': '还好', 'i': '一', 'j': '就家',
+            'k': '可开', 'l': '了来', 'm': '没么', 'n': '你那', 'o': '哦',
+            'p': '平票', 'q': '去前', 'r': '人如', 's': '是时', 't': '天他',
+            'u': '有', 'v': '五', 'w': '我', 'x': '小新', 'y': '要有', 'z': '在中'
+        };
+
+        // 如果查询是英文字母，检查是否匹配中文首字母
+        if (/^[a-zA-Z]+$/.test(query)) {
+            return query.split('').every(char => {
+                const pinyin = pinyinMap[char.toLowerCase()];
+                return pinyin && text.split('').some(textChar => pinyin.includes(textChar));
+            });
+        }
+
+        return text.toLowerCase().includes(query.toLowerCase());
+    }
+
+    // ====== API 请求函数 ======
+    async function apiRequest(endpoint, options = {}) {
+        // 在每次API调用前同步最新的输入框配置
+        syncConfigFromInputs();
+
+        const url = `${gitlabConfig.server}/api/v4${endpoint}`;
+        const response = await fetch(url, {
+            headers: {
+                'Private-Token': gitlabConfig.token,
+                'Content-Type': 'application/json',
+                ...options.headers
+            },
+            ...options
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        return response.json();
+    }
+
+    // ====== 分页API请求函数 ======
+    async function getAllPaginatedData(endpoint, maxPages = 50) {
+        let allData = [];
+        let page = 1;
+        const perPage = 100; // GitLab API最大每页100条
+        const startTime = performance.now();
+
+        console.log(`🔄 开始分页加载: ${endpoint}`);
+
+        while (page <= maxPages) {
+            const separator = endpoint.includes('?') ? '&' : '?';
+            const paginatedEndpoint = `${endpoint}${separator}per_page=${perPage}&page=${page}`;
+
+            try {
+                const pageStartTime = performance.now();
+                const data = await apiRequest(paginatedEndpoint);
+                const pageEndTime = performance.now();
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    console.log(`📄 第 ${page} 页无数据，加载结束`);
+                    break; // 没有更多数据
+                }
+
+                allData = allData.concat(data);
+                console.log(`📄 第 ${page} 页加载完成: ${data.length} 条数据 (${Math.round(pageEndTime - pageStartTime)}ms)`);
+
+                // 如果返回的数据少于每页数量，说明是最后一页
+                if (data.length < perPage) {
+                    console.log(`📄 第 ${page} 页是最后一页 (${data.length} < ${perPage})`);
+                    break;
+                }
+
+                page++;
+            } catch (error) {
+                console.error(`❌ 获取第 ${page} 页数据失败:`, error);
+                break;
+            }
+        }
+
+        const endTime = performance.now();
+        const totalTime = Math.round(endTime - startTime);
+        console.log(`✅ 分页加载完成: 共 ${allData.length} 条数据，${page - 1} 页，耗时 ${totalTime}ms`);
+
+        return allData;
+    }
+
+    // ====== 渐进式分页加载函数（每次10条，立即渲染）======
+    async function getProgressivePaginatedData(endpoint, onPageLoaded, maxPages = 100) {
+        let allData = [];
+        let page = 1;
+        const perPage = 10; // 每次只加载10条，快速响应
+        const startTime = performance.now();
+
+        console.log(`🚀 开始渐进式加载: ${endpoint}`);
+
+        while (page <= maxPages) {
+            const separator = endpoint.includes('?') ? '&' : '?';
+            const paginatedEndpoint = `${endpoint}${separator}per_page=${perPage}&page=${page}`;
+
+            try {
+                const pageStartTime = performance.now();
+                const data = await apiRequest(paginatedEndpoint);
+                const pageEndTime = performance.now();
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    console.log(`📄 第 ${page} 页无数据，加载结束`);
+                    break;
+                }
+
+                allData = allData.concat(data);
+                console.log(`📄 第 ${page} 页加载完成: ${data.length} 条数据 (${Math.round(pageEndTime - pageStartTime)}ms)`);
+
+                // 立即回调渲染当前页数据
+                if (onPageLoaded) {
+                    onPageLoaded(data, allData.length, page);
+                }
+
+                // 如果返回的数据少于每页数量，说明是最后一页
+                if (data.length < perPage) {
+                    console.log(`📄 第 ${page} 页是最后一页 (${data.length} < ${perPage})`);
+                    break;
+                }
+
+                page++;
+            } catch (error) {
+                console.error(`❌ 获取第 ${page} 页数据失败:`, error);
+                break;
+            }
+        }
+
+        const endTime = performance.now();
+        const totalTime = Math.round(endTime - startTime);
+        console.log(`✅ 渐进式加载完成: 共 ${allData.length} 条数据，${page - 1} 页，耗时 ${totalTime}ms`);
+
+        return allData;
+    }
+
+    // ====== 获取项目所有分支 ======
+    async function getAllProjectBranches(projectId) {
+        // 使用配置相关的缓存键，确保不同配置有独立缓存
+        const configHash = getConfigHash();
+        const cacheKey = `all-branches-${configHash}-${projectId}`;
+        const cached = sessionStorage.getItem(cacheKey);
+
+        // 检查缓存（30分钟有效期）
+        if (cached) {
+            const cacheData = JSON.parse(cached);
+            const cacheTime = new Date(cacheData.timestamp);
+            const now = new Date();
+            if (now - cacheTime < 30 * 60 * 1000) { // 30分钟
+                console.log(`📦 使用分支缓存: 项目${projectId}, 配置${configHash}`);
+                return cacheData.branches;
+            }
+        }
+
+        console.log(`🔄 获取项目 ${projectId} 的所有分支 (配置: ${configHash})...`);
+        const branches = await getAllPaginatedData(`/projects/${projectId}/repository/branches`);
+
+        // 缓存结果
+        const cacheData = {
+            branches: branches,
+            timestamp: new Date().toISOString(),
+            configHash: configHash
+        };
+        sessionStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        console.log(`💾 分支数据已缓存: 项目${projectId}, 配置${configHash}, ${branches.length}个分支`);
+
+        return branches;
+    }
+
+    // ====== 项目管理 ======
+    async function loadProjects(forceRefresh = false) {
+        const refreshBtn = document.getElementById('refreshBtn');
+        const loading = document.getElementById('refreshLoading');
+        const selector = document.getElementById('projectSelector');
+
+        refreshBtn.disabled = true;
+        loading.classList.remove('hidden');
+
+        try {
+            // 重新加载最新配置，确保使用localStorage中的最新token
+            console.log('🔄 刷新前配置:', gitlabConfig);
+            loadConfig();
+            console.log('🔄 刷新后配置:', gitlabConfig);
+
+            // 验证配置完整性
+            if (!gitlabConfig.server || !gitlabConfig.token) {
+                throw new Error('GitLab配置不完整，请先设置服务器地址和访问Token');
+            }
+
+            // 生成配置相关的缓存键，确保不同配置使用不同缓存
+            const configHash = getConfigHash();
+            const cacheKey = `gitlab-projects-${configHash}`;
+            const cacheTimeKey = `gitlab-projects-time-${configHash}`;
+
+            console.log(`🔑 使用项目缓存键: ${cacheKey}`);
+
+            let useCache = false;
+            const now = Date.now();
+
+            // 检查是否可以使用缓存（页面打开时允许使用缓存，强制刷新时不使用）
+            if (!forceRefresh) {
+                const cached = localStorage.getItem(cacheKey);
+                const cacheTime = localStorage.getItem(cacheTimeKey);
+
+                if (cached && cacheTime && (now - parseInt(cacheTime)) < 300000) { // 5分钟缓存
+                    allProjects = JSON.parse(cached);
+                    showToast(`📦 从缓存加载项目 (${configHash})`, 'success');
+                    console.log(`📦 使用缓存数据，配置标识: ${configHash}`);
+                    useCache = true;
+                }
+            }
+
+            // 如果强制刷新或缓存不可用，从API获取最新数据
+            if (!useCache) {
+                if (forceRefresh) {
+                    showToast('🔄 强制刷新，获取最新项目数据...', 'info');
+                    console.log('🔄 强制刷新模式，跳过缓存');
+                } else {
+                    showToast('⏳ 开始渐进式加载项目列表...', 'info');
+                    console.log('📡 缓存不可用，使用渐进式加载');
+                }
+
+                // 清空allProjects，准备渐进式加载
+                allProjects = [];
+
+                // 显示加载中状态
+                selector.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;"><div class="loading" style="margin: 0 auto 15px;"></div>正在加载项目列表...</div>';
+
+                // 使用渐进式分页加载，每次10条，立即渲染
+                await getProgressivePaginatedData(
+                    '/projects?order_by=last_activity_at&sort=desc',
+                    (pageData, totalLoaded, pageNum) => {
+                        // 每加载一页就立即追加到allProjects并渲染
+                        allProjects = allProjects.concat(pageData);
+
+                        console.log(`🎨 渐进式渲染: 第${pageNum}页，当前共${totalLoaded}个项目`);
+
+                        // 立即渲染当前已加载的项目
+                        renderProjectsProgressive();
+                        updateStats();
+
+                        // 更新加载提示
+                        showToast(`📦 已加载 ${totalLoaded} 个项目...`, 'info');
+                    },
+                    100 // 最多100页，每页10个，共1000个项目
+                );
+
+                // 保存到配置相关的缓存键，覆盖旧缓存
+                localStorage.setItem(cacheKey, JSON.stringify(allProjects));
+                localStorage.setItem(cacheTimeKey, now.toString());
+
+                console.log(`💾 项目数据已更新缓存，配置标识: ${configHash}，共 ${allProjects.length} 个项目`);
+            }
+
+            // 初始化折叠状态：优先从localStorage恢复，否则使用默认规则
+            const savedCollapsedGroups = localStorage.getItem('collapsed-groups');
+            if (savedCollapsedGroups) {
+                // 恢复用户上次的折叠状态
+                collapsedGroups = new Set(JSON.parse(savedCollapsedGroups));
+                console.log('📦 恢复折叠状态:', Array.from(collapsedGroups));
+            } else {
+                // 首次加载：只展开重要分组（NEXGO HUB、MPoC、ssc），其他默认折叠
+                const importantGroups = ['NEXGO HUB', 'MPoC', 'ssc'];
+                const groupedProjects = groupProjectsByNamespace(allProjects);
+                collapsedGroups.clear();
+                Object.keys(groupedProjects).forEach(groupName => {
+                    if (!importantGroups.includes(groupName)) {
+                        collapsedGroups.add(groupName);
+                    }
+                });
+                console.log('🆕 使用默认折叠状态:', Array.from(collapsedGroups));
+            }
+
+            // 最终完整渲染一次（如果使用缓存）
+            if (useCache) {
+                renderProjects();
+                updateStats();
+            }
+
+            // 更新刷新按钮的标题，显示当前配置信息
+            const serverHost = gitlabConfig.server.replace(/^https?:\/\//, '').split('/')[0];
+            refreshBtn.title = `当前配置: ${serverHost} (${configHash})`;
+
+            // 根据数据来源显示不同的成功消息
+            if (forceRefresh) {
+                showToast(`✅ 刷新完成！获取到 ${allProjects.length} 个最新项目 (${configHash})`, 'success');
+            } else if (useCache) {
+                // 缓存加载的消息已经在上面显示了
+            } else {
+                showToast(`✅ 渐进式加载完成！共 ${allProjects.length} 个项目 (${configHash})`, 'success');
+            }
+        } catch (error) {
+            console.error('加载项目失败:', error);
+            showToast('加载项目失败: ' + error.message, 'error');
+            document.getElementById('projectSelector').innerHTML =
+                '<div style="padding: 40px; text-align: center; color: #dc3545;">❌ 加载失败，请检查配置和网络连接</div>';
+        } finally {
+            refreshBtn.disabled = false;
+            loading.classList.add('hidden');
+        }
+    }
+
+    // ====== 渐进式渲染函数（追加模式，不清空现有内容）======
+    function renderProjectsProgressive() {
+        const selector = document.getElementById('projectSelector');
+        const query = document.getElementById('projectSearch').value.toLowerCase();
+
+        if (allProjects.length === 0) {
+            selector.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;">暂无项目</div>';
+            return;
+        }
+
+        // 按组织分组项目
+        const groupedProjects = groupProjectsByNamespace(allProjects);
+
+        // 渲染分组项目
+        let html = '';
+
+        // 使用自定义排序
+        const sortedGroupNames = sortGroupNames(Object.keys(groupedProjects));
+
+        sortedGroupNames.forEach(groupName => {
+            const groupProjects = groupedProjects[groupName];
+            const selectedInGroup = groupProjects.filter(p => selectedProjects.has(p.id)).length;
+            const isCollapsed = collapsedGroups.has(groupName);
+
+            // 分组标题
+            html += `
+                <div class="group-header">
+                    <span class="group-toggle ${isCollapsed ? 'collapsed' : ''}" onclick="toggleGroup('${groupName}'); event.stopPropagation();">▼</span>
+                    <span class="group-name" onclick="toggleGroup('${groupName}'); event.stopPropagation();">📁 ${groupName}</span>
+                    <span class="group-stats">${selectedInGroup}/${groupProjects.length}</span>
+                    <button class="btn btn-secondary" onclick="toggleGroupSelection('${groupName}'); event.stopPropagation();"
+                            style="padding: 2px 6px; font-size: 11px; margin-left: 8px;">
+                        ${selectedInGroup === groupProjects.length ? '取消全选' : '全选'}
+                    </button>
+                </div>
+            `;
+
+            // 分组内容
+            html += `<div class="group-content ${isCollapsed ? 'collapsed' : ''}" id="group-${groupName.replace(/[^a-zA-Z0-9]/g, '-')}">`;
+
+            groupProjects.forEach(project => {
+                const isFavorite = favoriteProjects.has(project.id);
+                // 显示完整的项目路径，但高亮搜索时只针对项目名
+                const displayName = project.name_with_namespace || project.name;
+                const highlightedName = query ?
+                    displayName.replace(new RegExp(`(${query})`, 'gi'), '<span class="highlight">$1</span>') :
+                    displayName;
+
+                html += `
+                    <div class="project-item ${selectedProjects.has(project.id) ? 'selected' : ''}"
+                         onclick="toggleProject(${project.id})" data-project-id="${project.id}">
+                        <input type="checkbox" class="project-checkbox"
+                               ${selectedProjects.has(project.id) ? 'checked' : ''}
+                               onchange="toggleProject(${project.id})" onclick="event.stopPropagation()">
+                        <div class="project-name">${highlightedName}</div>
+                        <span onclick="toggleFavorite(${project.id}, event)" style="cursor: pointer; font-size: 16px;">
+                            ${isFavorite ? '⭐' : '☆'}
+                        </span>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+        });
+
+        selector.innerHTML = html;
+        updateSelectedTags();
+    }
+
+    function renderProjects(filteredProjects = null) {
+        const projects = filteredProjects || allProjects;
+        const selector = document.getElementById('projectSelector');
+        const query = document.getElementById('projectSearch').value.toLowerCase();
+
+        if (projects.length === 0) {
+            selector.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;">暂无项目</div>';
+            return;
+        }
+
+        // 按组织分组项目
+        const groupedProjects = groupProjectsByNamespace(projects);
+
+        // 渲染分组项目
+        let html = '';
+
+        // 使用自定义排序
+        const sortedGroupNames = sortGroupNames(Object.keys(groupedProjects));
+
+        sortedGroupNames.forEach(groupName => {
+            const groupProjects = groupedProjects[groupName];
+            const selectedInGroup = groupProjects.filter(p => selectedProjects.has(p.id)).length;
+            const isCollapsed = collapsedGroups.has(groupName);
+
+            // 分组标题
+            html += `
+                <div class="group-header">
+                    <span class="group-toggle ${isCollapsed ? 'collapsed' : ''}" onclick="toggleGroup('${groupName}'); event.stopPropagation();">▼</span>
+                    <span class="group-name" onclick="toggleGroup('${groupName}'); event.stopPropagation();">📁 ${groupName}</span>
+                    <span class="group-stats">${selectedInGroup}/${groupProjects.length}</span>
+                    <button class="btn btn-secondary" onclick="toggleGroupSelection('${groupName}'); event.stopPropagation();"
+                            style="padding: 2px 6px; font-size: 11px; margin-left: 8px;">
+                        ${selectedInGroup === groupProjects.length ? '取消全选' : '全选'}
+                    </button>
+                </div>
+            `;
+
+            // 分组内容
+            html += `<div class="group-content ${isCollapsed ? 'collapsed' : ''}" id="group-${groupName.replace(/[^a-zA-Z0-9]/g, '-')}">`;
+
+            groupProjects.forEach(project => {
+                const isFavorite = favoriteProjects.has(project.id);
+                // 显示完整的项目路径，但高亮搜索时只针对项目名
+                const displayName = project.name_with_namespace || project.name;
+                const highlightedName = query ?
+                    displayName.replace(new RegExp(`(${query})`, 'gi'), '<span class="highlight">$1</span>') :
+                    displayName;
+
+                html += `
+                    <div class="project-item ${selectedProjects.has(project.id) ? 'selected' : ''}"
+                         onclick="toggleProject(${project.id})" data-project-id="${project.id}">
+                        <input type="checkbox" class="project-checkbox"
+                               ${selectedProjects.has(project.id) ? 'checked' : ''}
+                               onchange="toggleProject(${project.id})" onclick="event.stopPropagation()">
+                        <div class="project-name">${highlightedName}</div>
+                        <span onclick="toggleFavorite(${project.id}, event)" style="cursor: pointer; font-size: 16px;">
+                            ${isFavorite ? '⭐' : '☆'}
+                        </span>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+        });
+
+        selector.innerHTML = html;
+        updateSelectedTags();
+    }
+
+    function groupProjectsByNamespace(projects) {
+        const groups = {};
+
+        projects.forEach(project => {
+            // 从完整项目名中提取第一部分作为分组名
+            const fullName = project.name_with_namespace || project.name || '';
+            const groupName = fullName.split(' / ')[0] || '未分组';
+
+            if (!groups[groupName]) {
+                groups[groupName] = [];
+            }
+            groups[groupName].push(project);
+        });
+
+        return groups;
+    }
+
+    function sortGroupNames(groupNames) {
+        // 自定义分组排序：NEXGO HUB第一，MPoC第二，ssc第三，其他按字母排序
+        return groupNames.sort((a, b) => {
+            const priority = { 'NEXGO HUB': 1, 'MPoC': 2, 'ssc': 3 };
+            const aPriority = priority[a] || 999;
+            const bPriority = priority[b] || 999;
+
+            if (aPriority !== bPriority) {
+                return aPriority - bPriority;
+            }
+            return a.localeCompare(b);
+        });
+    }
+
+    function toggleGroup(groupName) {
+        if (collapsedGroups.has(groupName)) {
+            collapsedGroups.delete(groupName);
+        } else {
+            collapsedGroups.add(groupName);
+        }
+
+        // 保存折叠状态到localStorage
+        localStorage.setItem('collapsed-groups', JSON.stringify(Array.from(collapsedGroups)));
+
+        // 更新UI
+        const groupContent = document.getElementById(`group-${groupName.replace(/[^a-zA-Z0-9]/g, '-')}`);
+        const groupToggle = groupContent.previousElementSibling.querySelector('.group-toggle');
+
+        if (collapsedGroups.has(groupName)) {
+            groupContent.classList.add('collapsed');
+            groupToggle.classList.add('collapsed');
+        } else {
+            groupContent.classList.remove('collapsed');
+            groupToggle.classList.remove('collapsed');
+        }
+    }
+
+    function toggleGroupSelection(groupName) {
+        const groupProjects = allProjects.filter(project => {
+            // 从完整项目名中提取第一部分作为分组名进行匹配
+            const fullName = project.name_with_namespace || project.name || '';
+            const projectGroupName = fullName.split(' / ')[0] || '未分组';
+            return projectGroupName === groupName;
+        });
+
+        // 检查分组内项目的选择状态
+        const selectedInGroup = groupProjects.filter(p => selectedProjects.has(p.id)).length;
+        const shouldSelectAll = selectedInGroup < groupProjects.length;
+
+        if (shouldSelectAll) {
+            // 全选分组内项目
+            groupProjects.forEach(project => selectedProjects.add(project.id));
+            showToast(`已选择 ${groupProjects.length} 个项目 (${groupName})`, 'success');
+        } else {
+            // 取消选择分组内项目
+            groupProjects.forEach(project => selectedProjects.delete(project.id));
+            showToast(`已取消选择 ${groupProjects.length} 个项目 (${groupName})`, 'success');
+        }
+
+        renderProjects();
+        updateStats();
+        updateButtonStates();
+
+        if (selectedProjects.size > 0) {
+            loadCommonBranches();
+        } else {
+            clearBranches();
+        }
+    }
+
+    function toggleProject(projectId) {
+        if (selectedProjects.has(projectId)) {
+            selectedProjects.delete(projectId);
+        } else {
+            selectedProjects.add(projectId);
+        }
+
+        // 只更新当前项目的DOM状态，不重新渲染整个列表
+        const projectItem = document.querySelector(`.project-item[data-project-id="${projectId}"]`);
+        if (projectItem) {
+            const checkbox = projectItem.querySelector('.project-checkbox');
+            if (selectedProjects.has(projectId)) {
+                projectItem.classList.add('selected');
+                if (checkbox) checkbox.checked = true;
+            } else {
+                projectItem.classList.remove('selected');
+                if (checkbox) checkbox.checked = false;
+            }
+        }
+
+        updateStats();
+        updateButtonStates();
+        updateSelectedTags();
+
+        if (selectedProjects.size > 0) {
+            loadCommonBranches();
+        } else {
+            clearBranches();
+        }
+    }
+
+    function toggleFavorite(projectId, event) {
+        event.stopPropagation();
+
+        if (favoriteProjects.has(projectId)) {
+            favoriteProjects.delete(projectId);
+        } else {
+            favoriteProjects.add(projectId);
+        }
+
+        localStorage.setItem('favorite-projects', JSON.stringify(Array.from(favoriteProjects)));
+        renderProjects();
+        showToast(favoriteProjects.has(projectId) ? '已添加到收藏' : '已从收藏移除', 'success');
+    }
+
+    function selectAll() {
+        const visibleProjects = getFilteredProjects();
+        visibleProjects.forEach(project => selectedProjects.add(project.id));
+        renderProjects();
+        updateStats();
+        updateButtonStates();
+        loadCommonBranches();
+        showToast(`已选择 ${visibleProjects.length} 个可见项目`, 'success');
+    }
+
+    function selectNone() {
+        const previousCount = selectedProjects.size;
+        selectedProjects.clear();
+        renderProjects();
+        updateStats();
+        updateButtonStates();
+        clearBranches();
+        if (previousCount > 0) {
+            showToast(`已清空 ${previousCount} 个选择`, 'success');
+        }
+    }
+
+    function selectFavorites() {
+        let addedCount = 0;
+        favoriteProjects.forEach(projectId => {
+            if (allProjects.find(p => p.id === projectId) && !selectedProjects.has(projectId)) {
+                selectedProjects.add(projectId);
+                addedCount++;
+            }
+        });
+        renderProjects();
+        updateStats();
+        updateButtonStates();
+        if (selectedProjects.size > 0) {
+            loadCommonBranches();
+        }
+        showToast(`已选择 ${addedCount} 个收藏项目`, 'success');
+    }
+
+    function getFilteredProjects() {
+        const query = document.getElementById('projectSearch').value.toLowerCase().trim();
+        if (!query) return allProjects;
+
+        return allProjects.filter(project =>
+            project.name_with_namespace.toLowerCase().includes(query) ||
+            project.name.toLowerCase().includes(query) ||
+            project.namespace.name.toLowerCase().includes(query) ||
+            matchesPinyin(project.name_with_namespace, query)
+        );
+    }
+
+    // ====== 分支管理 ======
+    async function loadCommonBranches() {
+        if (selectedProjects.size === 0) return;
+
+        const sourceBranch = document.getElementById('sourceBranch');
+        const targetBranch = document.getElementById('targetBranch');
+        const selectedProjectsArray = Array.from(selectedProjects);
+
+        sourceBranch.innerHTML = '<option value="">加载中...</option>';
+        targetBranch.innerHTML = '<option value="">加载中...</option>';
+
+        try {
+            const totalProjects = selectedProjectsArray.length;
+            let completedProjects = 0;
+
+            // 显示详细进度
+            showToast(`开始加载 ${totalProjects} 个项目的分支信息...`, 'info');
+
+            const branchPromises = selectedProjectsArray.map(async (projectId, index) => {
+                try {
+                    const branches = await getAllProjectBranches(projectId);
+                    completedProjects++;
+
+                    // 更新进度
+                    const progress = Math.round((completedProjects / totalProjects) * 100);
+                    sourceBranch.innerHTML = `<option value="">加载中... ${progress}% (${completedProjects}/${totalProjects})</option>`;
+                    targetBranch.innerHTML = `<option value="">加载中... ${progress}% (${completedProjects}/${totalProjects})</option>`;
+
+                    console.log(`项目 ${projectId} 分支加载完成，共 ${branches.length} 个分支`);
+                    return branches;
+                } catch (error) {
+                    console.error(`项目 ${projectId} 分支加载失败:`, error);
+                    completedProjects++;
+                    // 返回空数组，这样不会阻止其他项目的处理
+                    return [];
+                }
+            });
+
+            const allBranchesResults = await Promise.all(branchPromises);
+
+            // 计算交集
+            let commonBranches = null;
+            let totalBranchesCount = 0;
+
+            allBranchesResults.forEach((branches, index) => {
+                const projectId = selectedProjectsArray[index];
+                const branchNames = branches.map(b => b.name);
+                totalBranchesCount += branches.length;
+
+                console.log(`项目 ${projectId}: ${branches.length} 个分支`);
+
+                if (commonBranches === null) {
+                    commonBranches = new Set(branchNames);
+                } else {
+                    commonBranches = new Set([...commonBranches].filter(name => branchNames.includes(name)));
+                }
+            });
+
+            const commonBranchArray = Array.from(commonBranches || []).sort();
+
+            // 更新分支选择器
+            const branchOptions = commonBranchArray.map(name =>
+                `<option value="${name}">${name}</option>`
+            ).join('');
+
+            sourceBranch.innerHTML = `<option value="">选择源分支</option>${branchOptions}`;
+            targetBranch.innerHTML = `<option value="">选择目标分支</option>${branchOptions}`;
+
+            // 自动选择常用分支
+            const priorityBranches = ['master', 'main', 'develop', 'dev'];
+            for (const branch of priorityBranches) {
+                if (commonBranchArray.includes(branch)) {
+                    targetBranch.value = branch;
+                    break;
+                }
+            }
+
+            // 刷新自定义下拉框
+            refreshCustomSelect('sourceBranch');
+            refreshCustomSelect('targetBranch');
+
+            // 更新统计
+            document.getElementById('commonBranches').textContent = commonBranchArray.length;
+
+            // 显示详细统计信息
+            const avgBranches = Math.round(totalBranchesCount / totalProjects);
+            showToast(
+                `✅ 分支加载完成！共同分支: ${commonBranchArray.length}个，平均每项目: ${avgBranches}个分支`,
+                'success'
+            );
+
+            console.log(`分支统计: 总计 ${totalBranchesCount} 个分支, 平均 ${avgBranches} 个/项目, 共同分支 ${commonBranchArray.length} 个`);
+
+        } catch (error) {
+            console.error('加载分支失败:', error);
+            showToast('加载分支失败: ' + error.message, 'error');
+            sourceBranch.innerHTML = '<option value="">加载失败</option>';
+            targetBranch.innerHTML = '<option value="">加载失败</option>';
+        }
+    }
+
+    function clearBranches() {
+        document.getElementById('sourceBranch').innerHTML = '<option value="">请先选择项目</option>';
+        document.getElementById('targetBranch').innerHTML = '<option value="">请先选择项目</option>';
+        document.getElementById('commonBranches').textContent = '0';
+    }
+
+    // ====== 指派人员管理 ======
+    async function loadAssignees() {
+        if (selectedProjects.size === 0) return;
+
+        const assigneeSelect = document.getElementById('assigneeSelect');
+        assigneeSelect.innerHTML = '<option value="">加载中...</option>';
+
+        try {
+            // 获取第一个项目的成员作为默认选项
+            const firstProjectId = Array.from(selectedProjects)[0];
+            const members = await apiRequest(`/projects/${firstProjectId}/members/all`);
+
+            const options = ['<option value="">无</option>'];
+            let defaultAssigneeId = null;
+
+            members.forEach(member => {
+                options.push(`<option value="${member.id}">${member.name} (@${member.username})</option>`);
+                if (member.name === '邢柳') {
+                    defaultAssigneeId = member.id;
+                }
+            });
+
+            assigneeSelect.innerHTML = options.join('');
+
+            if (defaultAssigneeId) {
+                assigneeSelect.value = defaultAssigneeId;
+            }
+
+            // 刷新自定义下拉框
+            refreshCustomSelect('assigneeSelect');
+        } catch (error) {
+            console.error('加载指派人员失败:', error);
+            assigneeSelect.innerHTML = '<option value="">加载失败</option>';
+        }
+    }
+
+    // ====== 提交预览 ======
+    async function previewCommits() {
+        const sourceBranch = document.getElementById('sourceBranch').value;
+        const targetBranch = document.getElementById('targetBranch').value;
+
+        if (!sourceBranch || !targetBranch) {
+            showToast('请先选择源分支和目标分支', 'warning');
+            return;
+        }
+
+        const commitsTable = document.getElementById('commitsTable');
+        const tableBody = document.getElementById('commitsTableBody');
+
+        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><div class="loading"></div> 正在加载提交信息...</td></tr>';
+
+        try {
+            const commitPromises = Array.from(selectedProjects).map(async projectId => {
+                const project = allProjects.find(p => p.id === projectId);
+                try {
+                    const comparison = await apiRequest(`/projects/${projectId}/repository/compare?from=${targetBranch}&to=${sourceBranch}`);
+                    return { project, commits: comparison.commits || [] };
+                } catch (error) {
+                    console.error(`获取项目 ${project.name} 的提交失败:`, error);
+                    return { project, commits: [], error: error.message };
+                }
+            });
+
+            const results = await Promise.all(commitPromises);
+
+            let totalCommits = 0;
+            const rows = [];
+
+            results.forEach(({ project, commits, error }) => {
+                if (error) {
+                    rows.push(`
+                        <tr>
+                            <td>${project.name}</td>
+                            <td colspan="4" style="color: #dc3545;">❌ 错误: ${error}</td>
+                        </tr>
+                    `);
+                } else if (commits.length === 0) {
+                    rows.push(`
+                        <tr>
+                            <td>${project.name}</td>
+                            <td colspan="4" style="text-align: center; color: #999;">📭 无差异提交</td>
+                        </tr>
+                    `);
+                } else {
+                    commits.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                    commits.forEach(commit => {
+                        const commitUrl = `${gitlabConfig.server}/${project.path_with_namespace}/commit/${commit.id}`;
+                        rows.push(`
+                            <tr>
+                                <td>${project.name}</td>
+                                <td><a href="${commitUrl}" target="_blank" class="commit-link">${commit.short_id}</a></td>
+                                <td>${commit.title}</td>
+                                <td>${commit.author_name}</td>
+                                <td>${new Date(commit.created_at).toLocaleString()}</td>
+                            </tr>
+                        `);
+                        totalCommits++;
+                    });
+                }
+            });
+
+            tableBody.innerHTML = rows.join('');
+            document.getElementById('totalCommits').textContent = totalCommits;
+            showToast(`找到 ${totalCommits} 个提交差异`);
+        } catch (error) {
+            console.error('预览提交失败:', error);
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #dc3545;">❌ 加载失败: ${error.message}</td></tr>`;
+            showToast('预览提交失败: ' + error.message, 'error');
+        }
+    }
+
+    // ====== 批量创建MR ======
+    async function createBatchMR() {
+        const sourceBranch = document.getElementById('sourceBranch').value;
+        const targetBranch = document.getElementById('targetBranch').value;
+        const titleTemplate = document.getElementById('titleTemplate').value;
+        const description = document.getElementById('descriptionTemplate').value;
+
+        // 检查是否使用 AI 生成的信息
+        const useAiGenerated = aiGeneratedMRInfo.size > 0;
+
+        // 根据模式选择指派人员
+        const assigneeId = useAiGenerated
+            ? document.getElementById('assigneeSelectAi').value
+            : document.getElementById('assigneeSelect').value;
+
+        if (!sourceBranch || !targetBranch) {
+            showToast('请先选择源分支和目标分支', 'warning');
+            return;
+        }
+
+        if (useAiGenerated) {
+            showToast('🤖 将使用 AI 生成的 MR 信息', 'info');
+        }
+
+        //if (!confirm(`确定要为 ${selectedProjects.size} 个项目创建合并请求吗？\n\n源分支: ${sourceBranch}\n目标分支: ${targetBranch}`)) {
+        //    return;
+        //}
+
+        // 显示进度
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const resultsTable = document.getElementById('resultsTable');
+        const resultsTableBody = document.getElementById('resultsTableBody');
+
+        progressContainer.style.display = 'block';
+        resultsTable.classList.remove('hidden');
+        resultsTableBody.innerHTML = '';
+
+        const projectIds = Array.from(selectedProjects);
+        let completed = 0;
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const projectId of projectIds) {
+            const project = allProjects.find(p => p.id === projectId);
+
+            // 优先使用 AI 生成的信息，如果没有则使用模板
+            let title, desc;
+            if (useAiGenerated && aiGeneratedMRInfo.has(projectId)) {
+                const aiInfo = aiGeneratedMRInfo.get(projectId);
+                title = aiInfo.title;
+                desc = aiInfo.description;
+            } else {
+                title = titleTemplate
+                    .replace('{source}', sourceBranch)
+                    .replace('{target}', targetBranch)
+                    .replace('{project}', project.name)
+                    .replace('{date}', new Date().toISOString().split('T')[0]);
+
+                desc = description
+                    .replace('{source}', sourceBranch)
+                    .replace('{target}', targetBranch)
+                    .replace('{project}', project.name)
+                    .replace('{date}', new Date().toISOString().split('T')[0]);
+            }
+
+            // 更新进度
+            progressText.textContent = `正在处理: ${project.name} (${completed + 1}/${projectIds.length})`;
+            progressFill.style.width = `${(completed / projectIds.length) * 100}%`;
+
+            try {
+                const mrData = {
+                    source_branch: sourceBranch,
+                    target_branch: targetBranch,
+                    title: title,
+                    description: desc || undefined,
+                    assignee_id: assigneeId || undefined
+                };
+
+                const result = await apiRequest(`/projects/${projectId}/merge_requests`, {
+                    method: 'POST',
+                    body: JSON.stringify(mrData)
+                });
+
+                const mrUrl = `${gitlabConfig.server}/${project.path_with_namespace}/merge_requests/${result.iid}`;
+
+                resultsTableBody.innerHTML += `
+                    <tr>
+                        <td>${project.name}</td>
+                        <td><span class="status-success">✅ 成功</span></td>
+                        <td>#${result.iid}</td>
+                        <td><a href="${mrUrl}" target="_blank">🔗 查看MR</a></td>
+                        <td>-</td>
+                    </tr>
+                `;
+                successCount++;
+            } catch (error) {
+                console.error(`创建MR失败 (${project.name}):`, error);
+                resultsTableBody.innerHTML += `
+                    <tr>
+                        <td>${project.name}</td>
+                        <td><span class="status-error">❌ 失败</span></td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>${error.message}</td>
+                    </tr>
+                `;
+                errorCount++;
+            }
+
+            completed++;
+            progressFill.style.width = `${(completed / projectIds.length) * 100}%`;
+
+            // 添加延迟避免API限制
+            if (completed < projectIds.length) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        progressText.textContent = `完成！成功: ${successCount}, 失败: ${errorCount}`;
+        showToast(`批量创建完成！成功 ${successCount} 个，失败 ${errorCount} 个`, successCount > 0 ? 'success' : 'error');
+    }
+
+
+
+    // ====== 快速选择分支 ======
+    function quickSelectBranch(source, target) {
+        const sourceBranchSelect = document.getElementById('sourceBranch');
+        const targetBranchSelect = document.getElementById('targetBranch');
+
+        // 检查分支是否存在
+        const sourceExists = Array.from(sourceBranchSelect.options).some(opt => opt.value === source);
+        const targetExists = Array.from(targetBranchSelect.options).some(opt => opt.value === target);
+
+        if (!sourceExists || !targetExists) {
+            const missing = [];
+            if (!sourceExists) missing.push(source);
+            if (!targetExists) missing.push(target);
+            showToast(`分支不存在: ${missing.join(', ')}`, 'warning');
+            return;
+        }
+
+        // 设置分支
+        sourceBranchSelect.value = source;
+        targetBranchSelect.value = target;
+
+        // 手动触发 change 事件，让自定义下拉框监听到变化
+        const sourceChangeEvent = new Event('change', { bubbles: true });
+        const targetChangeEvent = new Event('change', { bubbles: true });
+        sourceBranchSelect.dispatchEvent(sourceChangeEvent);
+        targetBranchSelect.dispatchEvent(targetChangeEvent);
+
+        // 刷新自定义下拉框显示（双重保险）
+        refreshCustomSelect('sourceBranch');
+        refreshCustomSelect('targetBranch');
+
+        showToast(`已选择: ${source} → ${target}`, 'success');
+    }
+
+    // ====== 搜索功能 ======
+    let searchTimeout;
+    document.getElementById('projectSearch').addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            const query = this.value.toLowerCase().trim();
+            const filtered = getFilteredProjects();
+            renderProjects(filtered);
+
+            // 保存搜索历史
+            if (query && query.length > 2) {
+                searchHistory = searchHistory.filter(item => item !== query);
+                searchHistory.unshift(query);
+                searchHistory = searchHistory.slice(0, 10); // 只保留最近10个
+                localStorage.setItem('search-history', JSON.stringify(searchHistory));
+            }
+        }, 300);
+    });
+
+    // ====== 分支选择监听 ======
+    document.getElementById('sourceBranch').addEventListener('change', function() {
+        updateTitleTemplate();
+        handleBranchChange();
+    });
+
+    document.getElementById('targetBranch').addEventListener('change', function() {
+        updateTitleTemplate();
+        handleBranchChange();
+    });
+
+    function updateTitleTemplate() {
+        const sourceBranch = document.getElementById('sourceBranch').value;
+        const targetBranch = document.getElementById('targetBranch').value;
+        const template = document.getElementById('titleTemplate');
+
+        if (sourceBranch && targetBranch) {
+            // 只有在输入框为空或者是默认模板格式时才自动填充
+            if (!template.value || template.value === '{source} → {target}' || template.value.includes(' → ') || template.value.includes(' -> ')) {
+                template.value = `${sourceBranch} → ${targetBranch}`;
+            }
+        }
+    }
+
+    function handleBranchChange() {
+        const sourceBranch = document.getElementById('sourceBranch').value;
+        const targetBranch = document.getElementById('targetBranch').value;
+
+        // 如果源分支和目标分支都已选择，自动预览提交差异
+        if (sourceBranch && targetBranch && selectedProjects.size > 0) {
+            // 延迟一下，让UI更新完成
+            setTimeout(() => {
+                previewCommits();
+            }, 100);
+        } else {
+            // 重置统计数据
+            document.getElementById('totalCommits').textContent = '0';
+        }
+    }
+
+    function clearCommitsPreview() {
+        const commitsTable = document.getElementById('commitsTable');
+        const tableBody = document.getElementById('commitsTableBody');
+
+        commitsTable.style.display = 'none';
+        tableBody.innerHTML = '';
+        document.getElementById('totalCommits').textContent = '0';
+
+        showToast('提交预览已关闭', 'success');
+    }
+
+    // ====== 快捷键支持 ======
+    let currentProjectIndex = -1;
+
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key) {
+                case 'Enter':
+                    e.preventDefault();
+                    if (!document.getElementById('createBtn').disabled) {
+                        createBatchMR();
+                    }
+                    break;
+                case 'a':
+                    if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                        e.preventDefault();
+                        selectAll();
+                    }
+                    break;
+
+            }
+        } else if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            switch(e.key) {
+                case 'Escape':
+                    document.getElementById('projectSearch').blur();
+                    currentProjectIndex = -1;
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    navigateProjects(-1);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    navigateProjects(1);
+                    break;
+                case 'Enter':
+                    if (currentProjectIndex >= 0) {
+                        const projects = getFilteredProjects();
+                        if (projects[currentProjectIndex]) {
+                            toggleProject(projects[currentProjectIndex].id);
+                        }
+                    }
+                    break;
+            }
+        }
+    });
+
+    function navigateProjects(direction) {
+        const projects = getFilteredProjects();
+        const items = document.querySelectorAll('.project-item');
+
+        if (items.length === 0) return;
+
+        // 移除当前高亮
+        if (currentProjectIndex >= 0 && currentProjectIndex < items.length) {
+            items[currentProjectIndex].style.backgroundColor = '';
+        }
+
+        // 更新索引
+        currentProjectIndex += direction;
+        if (currentProjectIndex < 0) currentProjectIndex = items.length - 1;
+        if (currentProjectIndex >= items.length) currentProjectIndex = 0;
+
+        // 高亮新的项目
+        items[currentProjectIndex].style.backgroundColor = '#e6f7ff';
+        items[currentProjectIndex].scrollIntoView({ block: 'nearest' });
+    }
+
+    // ====== 自定义下拉框组件类 ======
+    class CustomSelect {
+        constructor(selectElement, options = {}) {
+            this.selectElement = selectElement;
+            this.options = options;
+            this.selectedValue = selectElement.value || '';
+            this.isOpen = false;
+            this.init();
+        }
+
+        init() {
+            // 隐藏原生select
+            this.selectElement.style.display = 'none';
+
+            // 创建自定义下拉框
+            this.wrapper = document.createElement('div');
+            this.wrapper.className = 'custom-select-wrapper';
+
+            // 创建触发器
+            this.trigger = document.createElement('div');
+            this.trigger.className = 'custom-select-trigger';
+            this.trigger.innerHTML = `
+                <span class="custom-select-value ${!this.selectedValue ? 'placeholder' : ''}">
+                    ${this.getSelectedText()}
+                </span>
+                <svg class="custom-select-arrow" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+            `;
+
+            // 创建下拉面板
+            this.dropdown = document.createElement('div');
+            this.dropdown.className = 'custom-select-dropdown';
+            this.renderOptions();
+
+            // 组装
+            this.wrapper.appendChild(this.trigger);
+            this.wrapper.appendChild(this.dropdown);
+            this.selectElement.parentNode.insertBefore(this.wrapper, this.selectElement);
+
+            // 绑定事件
+            this.bindEvents();
+        }
+
+        getSelectedText() {
+            if (!this.selectedValue) {
+                return this.options.placeholder || '请选择';
+            }
+            const option = Array.from(this.selectElement.options).find(opt => opt.value === this.selectedValue);
+            return option ? option.text : this.options.placeholder || '请选择';
+        }
+
+        renderOptions() {
+            const options = Array.from(this.selectElement.options);
+            let html = '';
+
+            options.forEach(option => {
+                const isSelected = option.value === this.selectedValue;
+                html += `
+                    <div class="custom-select-option ${isSelected ? 'selected' : ''}" data-value="${option.value}">
+                        ${option.text}
+                    </div>
+                `;
+            });
+
+            if (options.length === 0) {
+                html = '<div class="custom-select-empty">暂无选项</div>';
+            }
+
+            this.dropdown.innerHTML = html;
+        }
+
+        bindEvents() {
+            // 点击触发器
+            this.trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggle();
+            });
+
+            // 点击选项
+            this.dropdown.addEventListener('click', (e) => {
+                const option = e.target.closest('.custom-select-option');
+                if (option) {
+                    const value = option.dataset.value;
+                    this.select(value);
+                }
+            });
+
+            // 点击外部关闭
+            document.addEventListener('click', (e) => {
+                if (!this.wrapper.contains(e.target)) {
+                    this.close();
+                }
+            });
+
+            // 监听原生select变化（外部更新）
+            this.selectElement.addEventListener('change', () => {
+                this.selectedValue = this.selectElement.value;
+                this.updateDisplay();
+            });
+
+            // 监听窗口滚动和resize，更新下拉面板位置
+            this.updatePositionHandler = () => {
+                if (this.isOpen) {
+                    const rect = this.trigger.getBoundingClientRect();
+                    this.dropdown.style.top = `${rect.bottom + 8}px`;
+                    this.dropdown.style.left = `${rect.left}px`;
+                    this.dropdown.style.width = `${rect.width}px`;
+                }
+            };
+
+            window.addEventListener('scroll', this.updatePositionHandler, true);
+            window.addEventListener('resize', this.updatePositionHandler);
+        }
+
+        toggle() {
+            if (this.isOpen) {
+                this.close();
+            } else {
+                this.open();
+            }
+        }
+
+        open() {
+            this.isOpen = true;
+            this.trigger.classList.add('active');
+
+            // 计算下拉面板的位置（使用fixed定位）
+            const rect = this.trigger.getBoundingClientRect();
+            this.dropdown.style.top = `${rect.bottom + 8}px`;
+            this.dropdown.style.left = `${rect.left}px`;
+            this.dropdown.style.width = `${rect.width}px`;
+
+            this.dropdown.classList.add('show');
+        }
+
+        close() {
+            this.isOpen = false;
+            this.trigger.classList.remove('active');
+            this.dropdown.classList.remove('show');
+        }
+
+        select(value) {
+            this.selectedValue = value;
+            this.selectElement.value = value;
+
+            // 触发原生change事件
+            const event = new Event('change', { bubbles: true });
+            this.selectElement.dispatchEvent(event);
+
+            this.updateDisplay();
+            this.close();
+        }
+
+        updateDisplay() {
+            // 更新触发器文本
+            const valueSpan = this.trigger.querySelector('.custom-select-value');
+            valueSpan.textContent = this.getSelectedText();
+            valueSpan.className = `custom-select-value ${!this.selectedValue ? 'placeholder' : ''}`;
+
+            // 更新选项状态
+            this.renderOptions();
+        }
+
+        // 更新选项列表（当原生select的options改变时调用）
+        refresh() {
+            this.renderOptions();
+            this.updateDisplay();
+        }
+
+        // 销毁
+        destroy() {
+            // 移除事件监听器
+            if (this.updatePositionHandler) {
+                window.removeEventListener('scroll', this.updatePositionHandler, true);
+                window.removeEventListener('resize', this.updatePositionHandler);
+            }
+
+            this.wrapper.remove();
+            this.selectElement.style.display = '';
+        }
+    }
+
+    // 全局存储自定义下拉框实例
+    const customSelects = new Map();
+
+    // 初始化自定义下拉框
+    function initCustomSelect(selectId, options = {}) {
+        const selectElement = document.getElementById(selectId);
+        if (!selectElement) {
+            console.error(`Select element with id "${selectId}" not found`);
+            return null;
+        }
+
+        // 如果已经初始化过，先销毁
+        if (customSelects.has(selectId)) {
+            customSelects.get(selectId).destroy();
+        }
+
+        // 创建新实例
+        const customSelect = new CustomSelect(selectElement, options);
+        customSelects.set(selectId, customSelect);
+        return customSelect;
+    }
+
+    // 刷新自定义下拉框（当选项改变时调用）
+    function refreshCustomSelect(selectId) {
+        const customSelect = customSelects.get(selectId);
+        if (customSelect) {
+            customSelect.refresh();
+        }
+    }
+
+    // ====== 初始化 ======
+    document.addEventListener('DOMContentLoaded', function() {
+        loadConfig();
+        loadProjects();
+
+        // 初始化按钮状态
+        updateButtonStates();
+
+        // 初始化自定义下拉框
+        setTimeout(() => {
+            initCustomSelect('sourceBranch', { placeholder: '选择源分支' });
+            initCustomSelect('targetBranch', { placeholder: '选择目标分支' });
+            initCustomSelect('assigneeSelect', { placeholder: '无' });
+
+            // 页面加载完成，显示body（防止闪烁）
+            document.body.classList.add('loaded');
+        }, 100);
+
+        // 添加配置输入框的实时监听
+        const serverInput = document.getElementById('gitlabServer');
+        const tokenInput = document.getElementById('gitlabToken');
+
+        // 输入框失去焦点时自动同步配置（实时生效，无需点保存）
+        serverInput.addEventListener('blur', syncConfigFromInputs);
+        tokenInput.addEventListener('blur', syncConfigFromInputs);
+
+        // 输入框内容变化时也同步（更加实时）
+        serverInput.addEventListener('input', syncConfigFromInputs);
+        tokenInput.addEventListener('input', syncConfigFromInputs);
+
+        // 监听项目选择变化以加载指派人员
+        let lastSelectedSize = 0;
+        setInterval(() => {
+            if (selectedProjects.size > 0 && selectedProjects.size !== lastSelectedSize) {
+                loadAssignees();
+                lastSelectedSize = selectedProjects.size;
+            }
+        }, 1000);
+
+
+    });
+</script>
+</body>
+</html>

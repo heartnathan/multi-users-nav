@@ -1,6 +1,6 @@
 name = "nav"
 main = "src/index.js"
-compatibility_date = "2025-12-17"
+compatibility_date = "2025-03-22"
 
 # D1 Database binding
 [[d1_databases]]

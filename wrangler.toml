@@ -1,0 +1,17 @@
+name = "nav"
+main = "src/index.js"
+compatibility_date = "2025-12-17"
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "multiusersnav"
+database_id = "b35fe858-bbfd-4edc-aac5-3e77e24484fb"
+
+# Environment variables
+[vars]
+JWT_SECRET = "yBQG31GMxSeYvpFkC5rycdY4LBBPoEZK"
+
+# Static assets
+[assets]
+directory = "./public"
